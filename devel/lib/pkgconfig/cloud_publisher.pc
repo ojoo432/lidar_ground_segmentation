@@ -1,0 +1,8 @@
+prefix=/home/ee904-i5-old-pc-1/Desktop/ground_ws/devel
+
+Name: cloud_publisher
+Description: Description of cloud_publisher
+Version: 0.0.0
+Cflags: 
+Libs: -L/home/ee904-i5-old-pc-1/Desktop/ground_ws/devel/lib 
+Requires: 

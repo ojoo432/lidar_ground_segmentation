@@ -1,0 +1,22 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/ee904-i5-old-pc-1/Desktop/ground_ws/src/communication/include/communication/identifiable.h
+cxxabi.h
+-
+string
+-
+cstdlib
+-
+
+/home/ee904-i5-old-pc-1/Desktop/ground_ws/src/communication/src/identifiable.cpp
+communication/identifiable.h
+/home/ee904-i5-old-pc-1/Desktop/ground_ws/src/communication/src/communication/identifiable.h
+string
+-
+

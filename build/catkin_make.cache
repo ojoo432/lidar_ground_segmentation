@@ -1,0 +1,2 @@
+cloud_publisher:communication:diff_helpers:ground_segmentation:image_labelers:m_pcd_publisher:pcd_publisher :pcl_plane_model:projections:ros_bridge:rosbag_to_pcd:utils
+-DCATKIN_DEVEL_PREFIX=/home/ee904-i5-old-pc-1/Desktop/ground_ws/devel -DCMAKE_INSTALL_PREFIX=/home/ee904-i5-old-pc-1/Desktop/ground_ws/install -G Unix Makefiles

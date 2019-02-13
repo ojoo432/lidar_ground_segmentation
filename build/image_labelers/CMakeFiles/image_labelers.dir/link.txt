@@ -1,0 +1,1 @@
+/usr/bin/c++  -fPIC     -shared -Wl,-soname,libimage_labelers.so -o /home/ee904-i5-old-pc-1/Desktop/ground_ws/devel/lib/libimage_labelers.so CMakeFiles/image_labelers.dir/src/abstract_image_labeler.cpp.o 

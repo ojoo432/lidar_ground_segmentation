@@ -1,0 +1,8 @@
+prefix=/home/ee904-i5-old-pc-1/Desktop/ground_ws/devel
+
+Name: m_pcd_publisher
+Description: Description of m_pcd_publisher
+Version: 0.0.0
+Cflags: 
+Libs: -L/home/ee904-i5-old-pc-1/Desktop/ground_ws/devel/lib 
+Requires: 

@@ -1,0 +1,1 @@
+/usr/bin/c++  -fPIC     -shared -Wl,-soname,libprojections.so -o /home/ee904-i5-old-pc-1/Desktop/ground_ws/devel/lib/libprojections.so CMakeFiles/projections.dir/src/ring_projection.cpp.o CMakeFiles/projections.dir/src/cloud_projection.cpp.o CMakeFiles/projections.dir/src/projection_params.cpp.o CMakeFiles/projections.dir/src/spherical_projection.cpp.o 
