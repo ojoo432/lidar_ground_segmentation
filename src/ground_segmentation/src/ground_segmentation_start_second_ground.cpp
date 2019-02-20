@@ -233,7 +233,7 @@ void show_row_cloud(const Cloud& cloud, pcl::PointCloud<pcl::PointXYZI>::Ptr out
 void show_row_anlge(const cv::Mat& angle_image)
 {
 
-  int col = 550;
+  int col = 610;
 
   cout<<"row_angle:"<<endl;
   
@@ -243,6 +243,34 @@ void show_row_anlge(const cv::Mat& angle_image)
     }
 }
 
+int *cal_start_index(const cv::Mat& angle_image, int _start_index[])
+{
+  float angle_threshold = 0.5;
+
+  int index = 0;
+  int row = 0;
+
+  for(int col = 0; col<870; ++col)
+  {
+    index = 0;
+
+    row = angle_image.rows-1;
+
+    while(row >0 && !(angle_image.at<float>(row, col) < angle_threshold &&  angle_image.at<float>(row, col) !=0 &&
+           angle_image.at<float>(row-1, col) < angle_threshold &&  angle_image.at<float>(row-1, col) !=0 &&
+           angle_image.at<float>(row-2, col) < angle_threshold &&  angle_image.at<float>(row-2, col) !=0))
+    {
+      --row;
+    }
+
+    index = row;
+    cout<<"col: "<<col<<"  2_ground_index: "<<index<<endl;
+    _start_index[col] = index;
+    
+  }
+
+      return _start_index;
+}
 
 int *cal_2_ground_index(const cv::Mat& angle_image, int _g_index[])
 {
@@ -281,14 +309,12 @@ int *cal_2_ground_index(const cv::Mat& angle_image, int _g_index[])
         }
         else
           _g_index[col] = index;
-       }
       }
+  }
 
       return _g_index;
 }
 
-    // cout<<g_index;
-    // return index;
 
 Mat GetSavitskyGolayKernel(int window_size)
 {
@@ -450,8 +476,8 @@ Mat ZeroOutGroundBFS(const cv::Mat& image,
       image_labeler.LabelOneComponent(1, ground_coord, &simple_diff_helper);
     }
 
-    if(c > 610 && c<620)
-      cout<<"col: "<<c<<" row_index: "<<r<<" ground_index: "<<g_index[c]<<endl;
+    // if(c > 610 && c<620)
+    //   cout<<"col: "<<c<<" row_index: "<<r<<" ground_index: "<<g_index[c]<<endl;
     auto current_coord = PixelCoord(r, c);
     uint16_t current_label = image_labeler.LabelAt(current_coord);
     if (current_label > 0)
@@ -535,6 +561,7 @@ Mat ZeroOutGroundBFS(const cv::Mat& image,
   }
   return res;
 }
+
 
 
 Mat DepthIntCompare(const cv::Mat& depthimage, const cv::Mat& intimage)
@@ -628,6 +655,7 @@ void velodyne_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
   pcl::PointCloud<pcl::PointXYZI>::Ptr project_depth_cloud_ptr (new pcl::PointCloud<pcl::PointXYZI>);
   pcl::PointCloud<pcl::PointXYZI>::Ptr row_cloud_ptr (new pcl::PointCloud<pcl::PointXYZI>);
 
+  int start_index[870] = {0};
   int g_index[870] = {0};
 
 
@@ -712,8 +740,8 @@ void velodyne_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
   angleMap = Colormap(angle_image);
   // smoothangleMap = Colormap(smoothed_image);
 
-
-  cal_2_ground_index(angle_image, g_index);
+  cal_start_index(angle_image, start_index);
+  // cal_2_ground_index(angle_image, g_index);
 
   auto no_ground_image = ZeroOutGroundBFS(depth_image, smoothed_image,
 _ground_remove_angle, _window_size, params, seg_no_ground, row_angle_image, col_angle_image,g_index);
@@ -739,7 +767,7 @@ _ground_remove_angle, _window_size, params, seg_ground, row_angle_image, col_ang
   points_from_image(cloud, ground_image, ground_cloud_ptr);
   points_from_image(cloud, no_ground_image, non_ground_cloud_ptr);
   show_row_cloud(cloud, row_cloud_ptr);
-  // show_row_anlge(smoothed_image);
+  show_row_anlge(angle_image);
 
   cv::namedWindow("Image_Angle", CV_WINDOW_NORMAL);
   cv::imshow("Image_Angle",angleMap);

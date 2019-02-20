@@ -203,7 +203,7 @@ bool check_start_ground_point(const Mat& depth_image,
 void show_row_cloud(const Cloud& cloud, pcl::PointCloud<pcl::PointXYZI>::Ptr out_cloud_ptr)
 {
 
-  int col = 615;
+  int col = 610;
   
   for(int row = 0; row < 31; ++row)
     {
@@ -274,7 +274,7 @@ int *cal_2_ground_index(const cv::Mat& angle_image, int _g_index[])
               angle_image.at<float>(row-2, col) < angle_threshold &&  angle_image.at<float>(row-2, col) !=0 &&
               angle_image.at<float>(row-3, col) < angle_threshold &&  angle_image.at<float>(row-3, col) !=0)
         {
-              // cout<<"col: "<<col<<"  2_ground_index: "<<row-1<<endl;
+              // cout<<"col: "<<col<<"row: "<<row<<"  2_ground_index: "<<row-3<<endl;
               index = row-3;
               _g_index[col] = index;
               break;
@@ -401,7 +401,7 @@ Mat ZeroOutGroundBFS(const cv::Mat& image,
     // start at bottom pixels and do bfs
 
     int r = image.rows - 1;
-    while ((r > 0 && image.at<float>(r, c) < 0.001f) || angle_image.at<float>(r, c) > 0.5) 
+    while ((r > 0 && image.at<float>(r, c) < 0.001f)) 
     {
       --r;
     }
@@ -427,12 +427,31 @@ Mat ZeroOutGroundBFS(const cv::Mat& image,
         continue;
       }
 
+      if((g_index[c]-1) < 0)
+    {
+      // cout<<"check_row_skip"<<endl;
+      continue;
+    }
+    else
+    {
+      if(image.at<float>(g_index[c]-1,c) < 0.001f)
+      {
+        // cout<<"check_depth_skip"<<endl;
+        continue;
+      }
+    }
+
+    if(check_start_ground_point(image, row_angle_image, col_angle_image, g_index[c], c))
+    {
+      // cout<<"check_ground_skip"<<endl;
+      continue;
+    }
+
       image_labeler.LabelOneComponent(1, ground_coord, &simple_diff_helper);
     }
 
     if(c > 610 && c<620)
       cout<<"col: "<<c<<" row_index: "<<r<<" ground_index: "<<g_index[c]<<endl;
-    // cout<<"col: "<<c<<" row_index: "<<r<<" ground_index: "<<g_index[c]<<endl;
     auto current_coord = PixelCoord(r, c);
     uint16_t current_label = image_labeler.LabelAt(current_coord);
     if (current_label > 0)
@@ -516,89 +535,6 @@ Mat ZeroOutGroundBFS(const cv::Mat& image,
   }
   return res;
 }
-
-// Mat ZeroOutGroundBFS(const cv::Mat& image,
-//                      const cv::Mat& angle_image,
-//                      const Radians& threshold,
-//                      int kernel_size,
-//                      const ProjectionParams& _params,
-//                      const bool _ground) 
-// {
-//   Mat res = cv::Mat::zeros(image.size(), CV_32F);
-//   LinearImageLabeler<> image_labeler(image, _params, threshold);
-//   SimpleDiff simple_diff_helper(&angle_image);
-//   Radians start_thresh = 30_deg;
-//   int counter = 0;
-//   string name;
-//   for (int c = 0; c < image.cols; ++c) 
-//   {
-//     // start at bottom pixels and do bfs
-//     // int r = image.rows - 1;
-//     // while (r > 0 && image.at<float>(r, c) < 0.001f) 
-//     // {
-//     //   --r;
-//     // }
-//     for(int r= 0; r < image.rows; ++r)
-//     {
-
-
-//     auto current_coord = PixelCoord(r, c);
-//     uint16_t current_label = image_labeler.LabelAt(current_coord);
-//     if (current_label > 0)
-//     {
-//       // this coord was already labeled, skip
-//       continue;
-//     }
-//     // TODO(igor): this is a test. Maybe switch it on, maybe off.
-//     if (angle_image.at<float>(r, c) > start_thresh.val()) 
-//     {
-//       continue;
-//     }
-//     image_labeler.LabelOneComponent(1, current_coord, &simple_diff_helper);
-//   }
-//   }
-
-//   auto label_image_ptr = image_labeler.GetLabelImage();
-//   if (label_image_ptr->rows != res.rows || label_image_ptr->cols != res.cols) 
-//   {
-//     fprintf(stderr, "ERROR: label image and res do not correspond.\n");
-//     return res;
-//   }
-//   kernel_size = std::max(kernel_size - 2, 3);
-//   Mat kernel = GetUniformKernel(kernel_size, CV_8U);
-//   Mat dilated = Mat::zeros(label_image_ptr->size(), label_image_ptr->type());
-//   cv::dilate(*label_image_ptr, dilated, kernel);
-//   // cv::imwrite( "dilated.jpg", dilated );
-//   if(_ground == true)
-//   {
-//   for (int r = 0; r < dilated.rows; ++r) 
-//     {
-//     for (int c = 0; c < dilated.cols; ++c) 
-//       {
-//       if (dilated.at<uint16_t>(r, c) == 0) 
-//         {
-//         // all unlabeled points are non-ground
-//         res.at<float>(r, c) = image.at<float>(r, c);
-//         }
-//       }
-//     }
-//   }
-//   else
-//   {
-//     for (int r = 0; r < dilated.rows; ++r) 
-//     {
-//     for (int c = 0; c < dilated.cols; ++c) 
-//       {
-//       if (dilated.at<uint16_t>(r, c) != 0) 
-//         {
-//         // all unlabeled points are non-ground
-//         res.at<float>(r, c) = image.at<float>(r, c);
-//         }
-//       }
-//     }
-//   }
-//   return res;
-// }
 
 
 Mat DepthIntCompare(const cv::Mat& depthimage, const cv::Mat& intimage)
@@ -802,13 +738,13 @@ _ground_remove_angle, _window_size, params, seg_ground, row_angle_image, col_ang
   //create 3d points from image
   points_from_image(cloud, ground_image, ground_cloud_ptr);
   points_from_image(cloud, no_ground_image, non_ground_cloud_ptr);
-  // show_row_cloud(cloud, row_cloud_ptr);
+  show_row_cloud(cloud, row_cloud_ptr);
   // show_row_anlge(smoothed_image);
 
-  // cv::namedWindow("Image_Angle", CV_WINDOW_NORMAL);
-  // cv::imshow("Image_Angle",angleMap);
+  cv::namedWindow("Image_Angle", CV_WINDOW_NORMAL);
+  cv::imshow("Image_Angle",angleMap);
 
-  // cv::waitKey(0);
+  cv::waitKey(0);
 
   // ground_cloud_ptr->width = 1;
   // ground_cloud_ptr->height = ground_cloud_ptr->points.size();
@@ -839,7 +775,7 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "ground_segmentation");
   ros::NodeHandle nh;
 
-  ros::Subscriber sub = nh.subscribe ("/velodyne_points", 1, velodyne_callback);
+  ros::Subscriber sub = nh.subscribe ("/pcd_topic", 1, velodyne_callback);
 
   
   _pub_nonground_cloud = nh.advertise<sensor_msgs::PointCloud2>("/nonground_points",1);
