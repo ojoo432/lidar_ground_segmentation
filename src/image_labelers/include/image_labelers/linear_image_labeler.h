@@ -76,6 +76,7 @@ class LinearImageLabeler : public AbstractImageLabeler {
   void LabelOneComponent(uint16_t label, const PixelCoord& start,
                          const AbstractDiff* diff_helper) 
   {
+    int counter = 0;
     Radians _near_ground_threshold = 20_deg;
     // breadth first search
     std::queue<PixelCoord> labeling_queue;
@@ -108,7 +109,7 @@ class LinearImageLabeler : public AbstractImageLabeler {
       auto diff = diff_helper->DiffAt(current,current);
       if(diff_helper->SatisfiesThreshold(diff, _radians_threshold))
       {
-        SetLabel(current,label);
+        // SetLabel(current,label);
       }
       for (const auto& step : Neighborhood) 
       {
@@ -131,21 +132,21 @@ class LinearImageLabeler : public AbstractImageLabeler {
           continue;
         }
         auto diff = diff_helper->DiffAt(current, neighbor);
-        if(current.row > 25)
+        if(current.row > 25 && diff_helper->SatisfiesThreshold(diff, _near_ground_threshold.val()))
         {
-            if (diff_helper->SatisfiesThreshold(diff, _near_ground_threshold.val())) 
-          {
-            // SetLabel(current,label);
-            labeling_queue.push(neighbor);
-          }
+          SetLabel(current,label);
+          labeling_queue.push(neighbor);
+          counter++;
         }
-        else
+        else if(diff_helper->SatisfiesThreshold(diff, _radians_threshold))
+        {     
+          SetLabel(current,label);
+          labeling_queue.push(neighbor);
+          counter++;
+        }
+        else if(counter != 0)
         {
-          if (diff_helper->SatisfiesThreshold(diff, _radians_threshold)) 
-          {
-            // SetLabel(current,label);
-            labeling_queue.push(neighbor);
-          }
+          SetLabel(current,label);
         }
       }
     }

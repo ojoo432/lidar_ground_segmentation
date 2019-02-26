@@ -256,7 +256,7 @@ int *cal_start_index(const cv::Mat& angle_image, int _start_index[])
 
     row = angle_image.rows-1;
 
-    while(row >0 && !(angle_image.at<float>(row, col) < angle_threshold &&  angle_image.at<float>(row, col) !=0 &&
+    while(row >2 && !(angle_image.at<float>(row, col) < angle_threshold &&  angle_image.at<float>(row, col) !=0 &&
            angle_image.at<float>(row-1, col) < angle_threshold &&  angle_image.at<float>(row-1, col) !=0 &&
            angle_image.at<float>(row-2, col) < angle_threshold &&  angle_image.at<float>(row-2, col) !=0))
     {
@@ -411,6 +411,7 @@ Mat ZeroOutGroundBFS(const cv::Mat& image,
                      const bool _ground,
                      const cv::Mat& row_angle_image,
                      const cv::Mat& col_angle_image,
+                     const int start_index[],
                      const int g_index[]) 
 {
   Mat res = cv::Mat::zeros(image.size(), CV_32F);
@@ -426,13 +427,13 @@ Mat ZeroOutGroundBFS(const cv::Mat& image,
     // {
     // start at bottom pixels and do bfs
 
-    int r = image.rows - 1;
-    while ((r > 0 && image.at<float>(r, c) < 0.001f)) 
-    {
-      --r;
-    }
+    // int r = image.rows - 1;
+    // while ((r > 0 && image.at<float>(r, c) < 0.001f)) 
+    // {
+    //   --r;
+    // }
 
-    if(  r > g_index[c] && g_index[c] !=0)
+    if(  start_index[c] > g_index[c] && g_index[c] !=0)
     {
       // cout<<"col: "<<c<<" row_index: "<<r<<" ground_index: "<<g_index[c]<<endl;
       // cout<<"=====execute second ground====="<<endl;
@@ -478,7 +479,7 @@ Mat ZeroOutGroundBFS(const cv::Mat& image,
 
     // if(c > 610 && c<620)
     //   cout<<"col: "<<c<<" row_index: "<<r<<" ground_index: "<<g_index[c]<<endl;
-    auto current_coord = PixelCoord(r, c);
+    auto current_coord = PixelCoord(start_index[c], c);
     uint16_t current_label = image_labeler.LabelAt(current_coord);
     if (current_label > 0)
     {
@@ -489,27 +490,27 @@ Mat ZeroOutGroundBFS(const cv::Mat& image,
     // TODO(igor): this is a test. Maybe switch it on, maybe off.
     // std::cout<<"z:"<<image.at<float>(r, c)*sines_vec[r]<<std::endl;
     // if (angle_image.at<float>(r, c) > start_thresh.val() || image.at<float>(r, c)*sin(row_angle_image.at<float>(r, c)) > -2.1) 
-    if (angle_image.at<float>(r, c) > start_thresh.val())
+    if (angle_image.at<float>(start_index[c], c) > start_thresh.val())
     {
       // cout<<"check_angle_skip"<<endl;
       continue;
     }
 
-    if((r-1) < 0)
+    if((start_index[c]-1) < 0)
     {
       // cout<<"check_row_skip"<<endl;
       continue;
     }
     else
     {
-      if(image.at<float>(r-1,c) < 0.001f)
+      if(image.at<float>(start_index[c]-1,c) < 0.001f)
       {
         // cout<<"check_depth_skip"<<endl;
         continue;
       }
     }
 
-    if(check_start_ground_point(image, row_angle_image, col_angle_image, r, c) && g_index[c] == 0)
+    if(check_start_ground_point(image, row_angle_image, col_angle_image, start_index[c], c) && g_index[c] == 0)
     {
       // cout<<"check_ground_skip"<<endl;
       continue;
@@ -741,14 +742,14 @@ void velodyne_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
   // smoothangleMap = Colormap(smoothed_image);
 
   cal_start_index(angle_image, start_index);
-  // cal_2_ground_index(angle_image, g_index);
+  cal_2_ground_index(angle_image, g_index);
 
   auto no_ground_image = ZeroOutGroundBFS(depth_image, smoothed_image,
-_ground_remove_angle, _window_size, params, seg_no_ground, row_angle_image, col_angle_image,g_index);
+_ground_remove_angle, _window_size, params, seg_no_ground, row_angle_image, col_angle_image, start_index, g_index);
   // cv::imwrite( "Smooth.jpg", smoothangleMap );
 
   auto ground_image = ZeroOutGroundBFS(depth_image, smoothed_image,
-_ground_remove_angle, _window_size, params, seg_ground, row_angle_image, col_angle_image,g_index);
+_ground_remove_angle, _window_size, params, seg_ground, row_angle_image, col_angle_image, start_index, g_index);
 
 
   auto ground_int_image = DepthIntCompare(ground_image, intensity_image);
@@ -769,10 +770,10 @@ _ground_remove_angle, _window_size, params, seg_ground, row_angle_image, col_ang
   show_row_cloud(cloud, row_cloud_ptr);
   show_row_anlge(angle_image);
 
-  cv::namedWindow("Image_Angle", CV_WINDOW_NORMAL);
-  cv::imshow("Image_Angle",angleMap);
+  // cv::namedWindow("Image_Angle", CV_WINDOW_NORMAL);
+  // cv::imshow("Image_Angle",angleMap);
 
-  cv::waitKey(0);
+  // cv::waitKey(0);
 
   // ground_cloud_ptr->width = 1;
   // ground_cloud_ptr->height = ground_cloud_ptr->points.size();
