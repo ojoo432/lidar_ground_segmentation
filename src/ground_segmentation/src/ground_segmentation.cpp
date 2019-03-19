@@ -22,7 +22,7 @@ using cv::DataType;
 const int _window_size =5;
 const cv::Point ANCHOR_CENTER = cv::Point(-1, -1);
 const int SAME_OUTPUT_TYPE = -1;
-const  Radians _ground_remove_angle = 4_deg;
+const  Radians _ground_remove_angle = 3_deg;
 const bool seg_no_ground = true; 
 const bool seg_ground = false;
 
@@ -202,12 +202,36 @@ bool check_start_ground_point(const Mat& depth_image,
   }
 }
 
+bool check_continuous_point(const Mat& angle_image,
+                            const int r,
+                            const int c,
+                            const int number,
+                            const float angle_threshold)
+{
+
+  float angle;
+
+  for(int i=0; i<number; i++)
+  {
+    angle =0;
+    angle = fabs(angle_image.at<float>(r-i, c) - angle_image.at<float>(r-i-1, c));
+
+
+    // cout<<"row: "<<r<<"col: "<<c<<"angle_diff: "<<angle<<endl;
+
+    if(angle > angle_threshold || angle_image.at<float>(r-i, c) == 0 ||  angle_image.at<float>(r-i, c) >0.8)
+      return false;
+  }
+
+  return true;
+}
+
 void show_row_cloud(const Cloud& cloud, pcl::PointCloud<pcl::PointXYZI>::Ptr out_cloud_ptr)
 {
 
-  int col = 414;
+  int col = 592;
   
-  for(int row = 0; row < 31; ++row)
+  for(int row = 0; row < 7; ++row)
     {
       
       const auto& point_container = cloud.projection_ptr()->at(row,col);
@@ -235,7 +259,7 @@ void show_row_cloud(const Cloud& cloud, pcl::PointCloud<pcl::PointXYZI>::Ptr out
 void show_row_angle(const cv::Mat& angle_image)
 {
 
-  int col = 414;
+  int col = 592;
 
   for(int row = 0; row < 31; ++row)
     {
@@ -266,8 +290,8 @@ int *cal_start_index(const cv::Mat& angle_image, int _start_index[])
     index = row;
     _start_index[col] = index;
 
-    if(col == 414)
-      cout<<"row:"<<row<<" start_index:"<<index<<endl;
+    // if(col == 397)
+    //   cout<<"row:"<<row<<" start_index:"<<index<<endl;
     
   }
 
@@ -316,6 +340,36 @@ int *cal_2_ground_index(const cv::Mat& angle_image, int _g_index[])
   }
 
       return _g_index;
+}
+
+vector<int> cal_ground_index(const cv::Mat& angle_image, const int col)
+{
+  float angle_threshold = 0.0523;
+  int n = 3;
+
+  int index = 0;
+  int row = 0;
+  bool search_ground_index = true;
+  vector<int> _ground_index;
+
+  for(int row = angle_image.rows-1; row > 2; --row)
+  {
+    index = 0;
+
+    if(search_ground_index && check_continuous_point(angle_image, row, col, n, angle_threshold))
+    {
+      index = row;
+      _ground_index.push_back(index);
+      if(col == 528)
+      // cout<<"row: "<<row<<"push_back_success"<<endl;
+      search_ground_index = false;
+    }
+    else if(!check_continuous_point(angle_image, row, col, n, angle_threshold))
+      search_ground_index = true;
+          // cout<<"row: "<<row<<"push_back_fail"<<endl;
+  }
+
+      return _ground_index;
 }
 
 
@@ -408,6 +462,7 @@ Mat GetUniformKernel(int window_size, int type)  {
 
 Mat ZeroOutGroundBFS(const cv::Mat& image,
                      const cv::Mat& angle_image,
+                     const cv::Mat& cal_image,
                      const Radians& threshold,
                      int kernel_size,
                      const ProjectionParams& _params,
@@ -426,106 +481,73 @@ Mat ZeroOutGroundBFS(const cv::Mat& image,
   string name;
   for (int c = 0; c < image.cols; ++c) 
   {
-    // for(int r = image.rows - 1; r > 0; --r)
-    // {
-    // start at bottom pixels and do bfs
-
-    // int r = image.rows - 1;
-    // while ((r > 0 && image.at<float>(r, c) < 0.001f)) 
-    // {
-    //   --r;
-    // }
-
-    if(  start_index[c] > g_index[c] && g_index[c] !=0)
+    
+    int r = image.rows - 1;
+    while ((r > 0 && image.at<float>(r, c) < 0.001f)) 
     {
-      // cout<<"col: "<<c<<" row_index: "<<r<<" ground_index: "<<g_index[c]<<endl;
-      // cout<<"=====execute second ground====="<<endl;
-      auto ground_coord = PixelCoord(g_index[c], c);
-      uint16_t ground_label = image_labeler.LabelAt(ground_coord);
-
-      if (ground_label > 0)
-      {
-        // this coord was already labeled, skip
-        continue;
-      }
-
-      if (angle_image.at<float>(g_index[c], c) > start_thresh.val())
-      {
-        // cout<<"col: "<<c<<" row_index: "<<r<<" ground_index: "<<g_index[c]<<endl;
-        // cout<<"=====execute second ground====="<<endl;
-        // cout<<"check_angle_skip"<<endl;
-        continue;
-      }
-
-      if((g_index[c]-1) < 0)
-    {
-      // cout<<"check_row_skip"<<endl;
-      continue;
-    }
-    else
-    {
-      if(image.at<float>(g_index[c]-1,c) < 0.001f)
-      {
-        // cout<<"check_depth_skip"<<endl;
-        continue;
-      }
+      --r;
     }
 
-    if(check_start_ground_point(image, row_angle_image, col_angle_image, g_index[c], c))
-    {
-      // cout<<"check_ground_skip"<<endl;
-      continue;
-    }
-
-      image_labeler.LabelOneComponent(1, ground_coord, &simple_diff_helper);
-    }
-
-    // if(c > 610 && c<620)
-    //   cout<<"col: "<<c<<" row_index: "<<r<<" ground_index: "<<g_index[c]<<endl;
-    auto current_coord = PixelCoord(start_index[c], c);
+    auto current_coord = PixelCoord(r, c);
     uint16_t current_label = image_labeler.LabelAt(current_coord);
-    if (current_label > 0)
-    {
-      cout<<"check_label_skip"<<endl;
-      // this coord was already labeled, skip
-      continue;
-    }
+    // if (current_label > 0)
+    // {
+    //   cout<<"check_label_skip"<<endl;
+    //   // this coord was already labeled, skip
+    //   continue;
+    // }
     // TODO(igor): this is a test. Maybe switch it on, maybe off.
     // std::cout<<"z:"<<image.at<float>(r, c)*sines_vec[r]<<std::endl;
     // if (angle_image.at<float>(r, c) > start_thresh.val() || image.at<float>(r, c)*sin(row_angle_image.at<float>(r, c)) > -2.1) 
-    if (angle_image.at<float>(start_index[c], c) > start_thresh.val())
+    if (angle_image.at<float>(r, c) > start_thresh.val())
     {
-      if(c == 414)
+      if(c == 397)
       cout<<"check_angle_skip"<<endl;
       continue;
     }
 
-    if((start_index[c]-1) < 0)
+    if((r-1) < 0)
     {
-      if(c == 414)
+      if(c == 397)
       cout<<"check_row_skip"<<endl;
       continue;
     }
     else
     {
-      if(image.at<float>(start_index[c]-1,c) < 0.001f)
+      if(image.at<float>(r-1,c) < 0.001f)
       {
-         if(c == 414)
+         if(c == 397)
         cout<<"check_depth_skip"<<endl;
         continue;
       }
     }
 
-    // if(check_start_ground_point(image, row_angle_image, col_angle_image, start_index[c], c) && g_index[c] == 0)
-    // {
-    //   if(c == 414)
-    //   cout<<"check_ground_skip"<<endl;
-    //   continue;
-    // }
-
     image_labeler.LabelOneComponent(1, current_coord, &simple_diff_helper);
-    
 
+  }
+
+  for (int c = 0; c < image.cols; ++c) 
+  {
+
+  vector<int> ground_index;
+
+    ground_index = cal_ground_index(cal_image, c);
+
+    for(int i =0; i < ground_index.size(); i++)
+    {
+      auto ground_coord = PixelCoord(ground_index[i], c);
+      uint16_t ground_label = image_labeler.LabelAt(ground_coord);
+
+      if (ground_label == 0 && 
+          angle_image.at<float>(ground_index[i], c) < start_thresh.val() &&
+          ground_index[i]-1 >= 0 &&
+          image.at<float>(ground_index[i]-1,c) >= 0.001f
+          )
+      {
+        //&&  !(check_start_ground_point(image, row_angle_image, col_angle_image, ground_index[i], c))
+        image_labeler.LabelOneComponent(1, ground_coord, &simple_diff_helper);
+      }
+    }
   }
 
   auto label_image_ptr = image_labeler.GetLabelImage();
@@ -704,7 +726,6 @@ void velodyne_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
     point.intensity() = BytesTo<float>(msg->data, point_start_byte + intensity_offset);
     point.ring() = BytesTo<uint16_t>(msg->data, point_start_byte + ring_offset);
 
-    // point.z *= -1;  // hack
     if((point.x()*point.x() + point.y()*point.y() + point.z()*point.z()) >4)
     cloud.push_back(point);
 
@@ -713,49 +734,33 @@ void velodyne_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
    cloud.InitProjection(params);
 
  
-
-  // cv::Mat depth_image_unfixed = cloud.projection_ptr()->depth_image();
-  // const cv::Mat& depth_image = RepairDepth(cloud.projection_ptr()->depth_image(), 5, 1.0f);
   const cv::Mat& depth_image = RepairDepth(cloud.projection_ptr()->depth_image(), 5, 1.0f);
   cv::Mat intensity_image = cloud.projection_ptr()->intensity_image();
   cv::Mat row_angle_image = cloud.projection_ptr()->row_angle_image();
   cv::Mat col_angle_image = cloud.projection_ptr()->col_angle_image();
 
  
-  // const auto& point_container = cloud.projection_ptr()->at(4, 5);
 
-          
-  //         cout<<point_container.points()<<endl;
-
-
-  
-  // cv::Mat unfixedMap,depthMap,intMap,nogrdMap,grdintMap,grdMap,angleMap,smoothangleMap;
 
   cv::Mat angleMap,smoothangleMap;
 
 
-  // params = cloud.projection_ptr();
-  // cout<<cloud.projection_ptr()<<endl;
   auto angle_image = CreateAngleImage(depth_image, params);
   project_depth_cloud(depth_image, params, project_depth_cloud_ptr, row_angle_image, col_angle_image);
   auto smoothed_image = ApplySavitskyGolaySmoothing(angle_image, _window_size);
 
-  // float angle_threshold[] = {};
 
-  // unfixedMap = Colormap(depth_image_unfixed);
-  // depthMap = Colormap(depth_image);
-  // intMap = Colormap(intensity_image);
   angleMap = Colormap(angle_image);
   smoothangleMap = Colormap(smoothed_image);
 
   cal_start_index(angle_image, start_index);
   cal_2_ground_index(angle_image, g_index);
 
-  auto no_ground_image = ZeroOutGroundBFS(depth_image, smoothed_image,
+  auto no_ground_image = ZeroOutGroundBFS(depth_image, smoothed_image, angle_image,
 _ground_remove_angle, _window_size, params, seg_no_ground, row_angle_image, col_angle_image, start_index, g_index);
   // cv::imwrite( "Smooth.jpg", smoothangleMap );
 
-  auto ground_image = ZeroOutGroundBFS(depth_image, smoothed_image,
+  auto ground_image = ZeroOutGroundBFS(depth_image, smoothed_image, angle_image,
 _ground_remove_angle, _window_size, params, seg_ground, row_angle_image, col_angle_image, start_index, g_index);
 
 
@@ -766,29 +771,27 @@ _ground_remove_angle, _window_size, params, seg_ground, row_angle_image, col_ang
   points_from_image(cloud, ground_image, ground_cloud_ptr);
   points_from_image(cloud, no_ground_image, non_ground_cloud_ptr);
   show_row_cloud(cloud, row_cloud_ptr);
+  cout<<"-----angle_image-----"<<endl;
   show_row_angle(angle_image);
+  cout<<"-----smoothed_image-----"<<endl;
+  show_row_angle(smoothed_image);
+  cout<<"-----depth_image-----"<<endl;
+  show_row_angle(depth_image);
 
-  cv::namedWindow("Image_Angle", CV_WINDOW_NORMAL);
-  cv::imshow("Image_Angle",angleMap);
+  // vector<int> ground_index;
 
-  cv::waitKey(0);
+  // ground_index = cal_ground_index(smoothed_image, 429);
+
+  // cout <<"ground_index: "<< ground_index.size() << ' ';
 
 
 
-  // ground_cloud_ptr->width = 1;
-  // ground_cloud_ptr->height = ground_cloud_ptr->points.size();
+  // cv::namedWindow("Image_Angle", CV_WINDOW_NORMAL);
+  // cv::imshow("Image_Angle",angleMap);
 
-  // non_ground_cloud_ptr->width = 1;
-  // non_ground_cloud_ptr->height = non_ground_cloud_ptr->points.size();
+  // cv::waitKey(0);
 
-  // pcl::PCDWriter writer_1;
-  // writer_1.write<pcl::PointXYZI> ("angle_ground_3.pcd", *ground_cloud_ptr, false);
 
-  // pcl::PCDWriter writer_2;
-  // writer_2.write<pcl::PointXYZI> ("angle_nonground_3.pcd", *non_ground_cloud_ptr, false);
-
-  // std::cout<<ground_cloud_ptr->points.size()<<std::endl;
-  // std::cout<<non_ground_cloud_ptr->points.size()<<std::endl;
   publishCloud(&_pub_ground_cloud, ground_cloud_ptr);
   publishCloud(&_pub_nonground_cloud, non_ground_cloud_ptr);
   // publishCloud(&_pub_image_cloud, project_depth_cloud_ptr);
@@ -804,7 +807,7 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "ground_segmentation");
   ros::NodeHandle nh;
 
-  ros::Subscriber sub = nh.subscribe ("/pcd_topic", 1, velodyne_callback);
+  ros::Subscriber sub = nh.subscribe ("/velodyne_points", 1, velodyne_callback);
 
   
   _pub_nonground_cloud = nh.advertise<sensor_msgs::PointCloud2>("/nonground_points",1);

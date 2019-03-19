@@ -1,0 +1,8 @@
+prefix=/home/ee904-i5-old-pc-1/Desktop/ground_ws/devel
+
+Name: visual_odometry
+Description: Description of visual_odometry
+Version: 0.0.0
+Cflags: -I/home/ee904-i5-old-pc-1/Desktop/ground_ws/src/visual_odometry/include
+Libs: -L/home/ee904-i5-old-pc-1/Desktop/ground_ws/devel/lib 
+Requires: roscpp std_msgs

@@ -597,6 +597,9 @@ communication_SOURCE_DIR:STATIC=/home/ee904-i5-old-pc-1/Desktop/ground_ws/src/co
 //The directory containing a CMake configuration file for cpp_common.
 cpp_common_DIR:PATH=/opt/ros/kinetic/share/cpp_common/cmake
 
+//The directory containing a CMake configuration file for cv_bridge.
+cv_bridge_DIR:PATH=/opt/ros/kinetic/share/cv_bridge/cmake
+
 //Value Computed by CMake
 diff_helpers_BINARY_DIR:STATIC=/home/ee904-i5-old-pc-1/Desktop/ground_ws/build/diff_helpers
 
@@ -743,6 +746,12 @@ projections_LIB_DEPENDS:STATIC=
 projections_SOURCE_DIR:STATIC=/home/ee904-i5-old-pc-1/Desktop/ground_ws/src/projections
 
 //Value Computed by CMake
+robot_pose_ekf_BINARY_DIR:STATIC=/home/ee904-i5-old-pc-1/Desktop/ground_ws/build/robot_pose_ekf
+
+//Value Computed by CMake
+robot_pose_ekf_SOURCE_DIR:STATIC=/home/ee904-i5-old-pc-1/Desktop/ground_ws/src/robot_pose_ekf
+
+//Value Computed by CMake
 ros_bridge_BINARY_DIR:STATIC=/home/ee904-i5-old-pc-1/Desktop/ground_ws/build/ros_bridge
 
 //The directory containing a CMake configuration file for ros_bridge.
@@ -826,6 +835,15 @@ utils_LIB_DEPENDS:STATIC=
 //Value Computed by CMake
 utils_SOURCE_DIR:STATIC=/home/ee904-i5-old-pc-1/Desktop/ground_ws/src/utils
 
+//Value Computed by CMake
+visual_odometry_BINARY_DIR:STATIC=/home/ee904-i5-old-pc-1/Desktop/ground_ws/build/visual_odometry
+
+//Dependencies for target
+visual_odometry_LIB_DEPENDS:STATIC=
+
+//Value Computed by CMake
+visual_odometry_SOURCE_DIR:STATIC=/home/ee904-i5-old-pc-1/Desktop/ground_ws/src/visual_odometry
+
 //The directory containing a CMake configuration file for xmlrpcpp.
 xmlrpcpp_DIR:PATH=/opt/ros/kinetic/share/xmlrpcpp/cmake
 
@@ -834,6 +852,30 @@ xmlrpcpp_DIR:PATH=/opt/ros/kinetic/share/xmlrpcpp/cmake
 # INTERNAL cache entries
 ########################
 
+BFL_CFLAGS:INTERNAL=
+BFL_CFLAGS_I:INTERNAL=
+BFL_CFLAGS_OTHER:INTERNAL=
+BFL_FOUND:INTERNAL=
+BFL_INCLUDEDIR:INTERNAL=
+BFL_LIBDIR:INTERNAL=
+BFL_LIBS:INTERNAL=
+BFL_LIBS_L:INTERNAL=
+BFL_LIBS_OTHER:INTERNAL=
+BFL_LIBS_PATHS:INTERNAL=
+BFL_PREFIX:INTERNAL=
+BFL_STATIC_CFLAGS:INTERNAL=
+BFL_STATIC_CFLAGS_I:INTERNAL=
+BFL_STATIC_CFLAGS_OTHER:INTERNAL=
+BFL_STATIC_LIBDIR:INTERNAL=
+BFL_STATIC_LIBS:INTERNAL=
+BFL_STATIC_LIBS_L:INTERNAL=
+BFL_STATIC_LIBS_OTHER:INTERNAL=
+BFL_STATIC_LIBS_PATHS:INTERNAL=
+BFL_VERSION:INTERNAL=
+BFL_orocos-bfl_INCLUDEDIR:INTERNAL=
+BFL_orocos-bfl_LIBDIR:INTERNAL=
+BFL_orocos-bfl_PREFIX:INTERNAL=
+BFL_orocos-bfl_VERSION:INTERNAL=
 //ADVANCED property for variable: Boost_ATOMIC_LIBRARY_DEBUG
 Boost_ATOMIC_LIBRARY_DEBUG-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: Boost_ATOMIC_LIBRARY_RELEASE
@@ -1062,6 +1104,8 @@ FIND_PACKAGE_MESSAGE_DETAILS_PCL_SURFACE:INTERNAL=[/usr/lib/x86_64-linux-gnu/lib
 FIND_PACKAGE_MESSAGE_DETAILS_PCL_TRACKING:INTERNAL=[/usr/lib/x86_64-linux-gnu/libpcl_tracking.so][/usr/include/pcl-1.7][v()]
 //Details about finding PCL_VISUALIZATION
 FIND_PACKAGE_MESSAGE_DETAILS_PCL_VISUALIZATION:INTERNAL=[/usr/lib/x86_64-linux-gnu/libpcl_visualization.so][/usr/include/pcl-1.7][v()]
+//Details about finding PkgConfig
+FIND_PACKAGE_MESSAGE_DETAILS_PkgConfig:INTERNAL=[/usr/bin/pkg-config][v0.29.1()]
 //Details about finding PythonInterp
 FIND_PACKAGE_MESSAGE_DETAILS_PythonInterp:INTERNAL=[/usr/bin/python][v2.7.12()]
 //Details about finding Threads

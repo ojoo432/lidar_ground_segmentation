@@ -33,7 +33,7 @@ main (int argc, char** argv)
   pcl::PointCloud<pcl::PointXYZI>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZI>);
   pcl::PointCloud<pcl::PointXYZI>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZI>);
   
-  if (pcl::io::loadPCDFile<pcl::PointXYZI> ("/home/ee904-i5-old-pc-1/Desktop/ground_ws/src/itri_pcd/curb1.pcd", *cloud) == -1) 
+  if (pcl::io::loadPCDFile<pcl::PointXYZI> ("/home/ee904-i5-old-pc-1/Desktop/ground_ws/src/itri_pcd/select3.pcd", *cloud) == -1) 
   {
     PCL_ERROR ("Couldn't read file test_pcd.pcd \n");
     return (-1);

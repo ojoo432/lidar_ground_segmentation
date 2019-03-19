@@ -47,6 +47,8 @@ class AbstractDiff {
    */
   virtual float DiffAt(const PixelCoord& from, const PixelCoord& to) const = 0;
 
+  inline const float AngleAt(const PixelCoord& coord) const { return _source_image->at<float>(coord.row, coord.col); };
+
   /**
    * @brief      Does the difference satisfy a threshold?
    *

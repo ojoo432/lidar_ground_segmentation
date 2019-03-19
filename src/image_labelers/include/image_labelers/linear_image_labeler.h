@@ -77,7 +77,7 @@ class LinearImageLabeler : public AbstractImageLabeler {
                          const AbstractDiff* diff_helper) 
   {
     int counter = 0;
-    Radians _near_ground_threshold = 20_deg;
+    Radians _near_ground_threshold = 25_deg;
     // breadth first search
     std::queue<PixelCoord> labeling_queue;
     labeling_queue.push(start);
@@ -106,11 +106,12 @@ class LinearImageLabeler : public AbstractImageLabeler {
         continue;
       }
 
-      auto diff = diff_helper->DiffAt(current,current);
-      if(diff_helper->SatisfiesThreshold(diff, _radians_threshold))
+      auto current_angle = diff_helper->AngleAt(current);
+      if(current_angle > 0.5)
       {
-        // SetLabel(current,label);
+        continue;
       }
+
       for (const auto& step : Neighborhood) 
       {
         PixelCoord neighbor = current + step;
@@ -123,8 +124,8 @@ class LinearImageLabeler : public AbstractImageLabeler {
         // neighbor.col = WrapCols(neighbor.col);
 
         auto neighbor_depth = DepthAt(neighbor);
-        if(neighbor_depth <0.001f)
-          --neighbor.row;
+        // if(neighbor_depth <0.001f)
+        //   --neighbor.row;
         uint16_t neigh_label = LabelAt(neighbor);
         if (neigh_label > 0) 
         {
@@ -132,7 +133,8 @@ class LinearImageLabeler : public AbstractImageLabeler {
           continue;
         }
         auto diff = diff_helper->DiffAt(current, neighbor);
-        if(current.row > 25 && diff_helper->SatisfiesThreshold(diff, _near_ground_threshold.val()))
+
+        if(current.row > 18 && diff_helper->SatisfiesThreshold(diff, _near_ground_threshold.val()))
         {
           SetLabel(current,label);
           labeling_queue.push(neighbor);

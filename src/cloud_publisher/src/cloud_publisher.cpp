@@ -36,57 +36,55 @@ void select_callback(const sensor_msgs::PointCloud2ConstPtr& in_sensor_cloud)
 
     pcl::fromROSMsg(*in_sensor_cloud, *current_sensor_cloud_ptr);
 
-    pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
-    kdtree.setInputCloud (cloud);
+  //   pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
+  //   kdtree.setInputCloud (cloud);
 
-    int K = 1;
+  //   int K = 1;
 
-    std::vector<int> pointIdxNKNSearch(K);
-    std::vector<float> pointNKNSquaredDistance(K);
+  //   std::vector<int> pointIdxNKNSearch(K);
+  //   std::vector<float> pointNKNSquaredDistance(K);
 
-    for (size_t i = 0; i < current_sensor_cloud_ptr->points.size (); ++i)
-  {
-      if ( kdtree.nearestKSearch (current_sensor_cloud_ptr->points[i], K, pointIdxNKNSearch, pointNKNSquaredDistance) > 0 )
-    {
-      inliers->indices.push_back(pointIdxNKNSearch[0]);
-    }
-  }
+  //   for (size_t i = 0; i < current_sensor_cloud_ptr->points.size (); ++i)
+  // {
+  //     if ( kdtree.nearestKSearch (current_sensor_cloud_ptr->points[i], K, pointIdxNKNSearch, pointNKNSquaredDistance) > 0 )
+  //   {
+  //     inliers->indices.push_back(pointIdxNKNSearch[0]);
+  //   }
+  // }
 
-  pcl::ExtractIndices<pcl::PointXYZ> extract;
-  extract.setInputCloud (cloud);
-  extract.setIndices (inliers);
-  extract.setNegative (false);
-  extract.filter (*remain_cloud_ptr);
-  extract.setNegative (true);
-  extract.filter (*filtered_cloud_ptr);
+  // pcl::ExtractIndices<pcl::PointXYZ> extract;
+  // extract.setInputCloud (cloud);
+  // extract.setIndices (inliers);
+  // extract.setNegative (false);
+  // extract.filter (*remain_cloud_ptr);
+  // extract.setNegative (true);
+  // extract.filter (*filtered_cloud_ptr);
 
-  pcl::copyPointCloud(*filtered_cloud_ptr, *cloud);
+  // pcl::copyPointCloud(*filtered_cloud_ptr, *cloud);
 
-  for (size_t i = 0; i < remain_cloud_ptr->points.size (); ++i)
-  {
-    pcl::PointXYZ current_point;
-    current_point.x = remain_cloud_ptr->points[i].x;
-    current_point.y = remain_cloud_ptr->points[i].y;
-    current_point.z = remain_cloud_ptr->points[i].z;
+  // for (size_t i = 0; i < remain_cloud_ptr->points.size (); ++i)
+  // {
+  //   pcl::PointXYZ current_point;
+  //   current_point.x = remain_cloud_ptr->points[i].x;
+  //   current_point.y = remain_cloud_ptr->points[i].y;
+  //   current_point.z = remain_cloud_ptr->points[i].z;
  
-    outlier_cloud_ptr->points.push_back(current_point);
-  }
+  //   outlier_cloud_ptr->points.push_back(current_point);
+  // }
 
-  publishCloud(&_pub_out_cloud, cloud);
+  // std::cout<<"false_size:"<<outlier_cloud_ptr->points.size()<<std::endl;
 
-  std::cout<<"false_size:"<<outlier_cloud_ptr->points.size()<<std::endl;
+  // outlier_cloud_ptr->width = 1;
+  // outlier_cloud_ptr->height = outlier_cloud_ptr->points.size();
 
-  outlier_cloud_ptr->width = 1;
-  outlier_cloud_ptr->height = outlier_cloud_ptr->points.size();
-
-  cloud->width = 1;
-  cloud->height = cloud->points.size();
+  // cloud->width = 1;
+  // cloud->height = cloud->points.size();
 
   pcl::PCDWriter writer_1;
-  writer_1.write<pcl::PointXYZ> ( "plane_nonground_3_false.pcd", *outlier_cloud_ptr, false);
+  writer_1.write<pcl::PointXYZ> ( "select3.pcd", *current_sensor_cloud_ptr, false);
 
-  pcl::PCDWriter writer_2;
-  writer_2.write<pcl::PointXYZ> ( "plane_nonground_3_true.pcd", *cloud, false);
+  // pcl::PCDWriter writer_2;
+  // writer_2.write<pcl::PointXYZ> ( "plane_nonground_3_true.pcd", *cloud, false);
 
 
 }
@@ -96,12 +94,6 @@ int main(int argc, char **argv)
   
   ros::init(argc, argv, "selected_points_publisher");
   ros::NodeHandle nh;
-
-  
-  if (pcl::io::loadPCDFile<pcl::PointXYZ> ("/home/ee904-i5-old-pc-1/Desktop/ground_ws/1.pcd", *cloud)== -1)
-  {
-    return (-1);
-  }
 
   ros::Subscriber sub = nh.subscribe ("/selected_pointcloud", 1, select_callback);
   _pub_out_cloud = nh.advertise<sensor_msgs::PointCloud2> ("/point_frame", 1);

@@ -37,6 +37,14 @@ class SimpleDiff : public AbstractDiff {
     // return fabs(_source_image->at<float>(from.row, from.col) - 0.05);
   }
 
+  /**
+   * @brief      Check angle value
+   */
+  inline float AngleAt(const PixelCoord& coord) {
+    return (_source_image->at<float>(coord.row, coord.col));
+    // return fabs(_source_image->at<float>(from.row, from.col) - 0.05);
+  }
+
 
   /**
   * @brief      Checks if the value is below threshold
