@@ -140,12 +140,8 @@ void project_depth_cloud(const Mat& depth_image,const ProjectionParams& _params,
         current_point.x = x_mat.at<float>(r, c);
         current_point.y = y_mat.at<float>(r, c);
         current_point.z = z_mat.at<float>(r, c);
-        if( r >14 && r<18)
-        {
-        current_point.intensity = 150;
-        out_cloud_ptr->points.push_back(current_point);
-        }
         
+        out_cloud_ptr->points.push_back(current_point);
 
       }
     }

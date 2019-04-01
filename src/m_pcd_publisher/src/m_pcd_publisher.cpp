@@ -28,35 +28,35 @@ void _callback(const sensor_msgs::PointCloud2ConstPtr& in_sensor_cloud)
   pcl::PointCloud<pcl::PointXYZ>::Ptr ground_cloud_f (new pcl::PointCloud<pcl::PointXYZ>);
   pcl::PointCloud<pcl::PointXYZ>::Ptr nonground_cloud_t (new pcl::PointCloud<pcl::PointXYZ>);
   pcl::PointCloud<pcl::PointXYZ>::Ptr nonground_cloud_f (new pcl::PointCloud<pcl::PointXYZ>);
-  if (pcl::io::loadPCDFile<pcl::PointXYZ> ("/home/ee904-i5-old-pc-1/Desktop/ground_ws/plane_ground_3_true.pcd", *ground_cloud_t) == -1) 
+  if (pcl::io::loadPCDFile<pcl::PointXYZ> ("/home/ee904-i5-old-pc-1/Desktop/ground_ws/src/itri_pcd/horizontal.pcd", *ground_cloud_t) == -1) 
   {
     PCL_ERROR ("Couldn't read file test_pcd.pcd \n");
   }
 
-  if (pcl::io::loadPCDFile<pcl::PointXYZ> ("/home/ee904-i5-old-pc-1/Desktop/ground_ws/plane_ground_3_false.pcd", *ground_cloud_f) == -1) //* load the file
+  if (pcl::io::loadPCDFile<pcl::PointXYZ> ("/home/ee904-i5-old-pc-1/Desktop/ground_ws/src/itri_pcd/select1.pcd", *ground_cloud_f) == -1) //* load the file
   {
     PCL_ERROR ("Couldn't read file test_pcd.pcd \n");
   }
 
-  if (pcl::io::loadPCDFile<pcl::PointXYZ> ("/home/ee904-i5-old-pc-1/Desktop/ground_ws/plane_nonground_3_true.pcd", *nonground_cloud_t) == -1) //* load the file
-  {
-    PCL_ERROR ("Couldn't read file test_pcd.pcd \n");
-  }
+  // if (pcl::io::loadPCDFile<pcl::PointXYZ> ("/home/ee904-i5-old-pc-1/Desktop/ground_ws/plane_nonground_3_true.pcd", *nonground_cloud_t) == -1) //* load the file
+  // {
+  //   PCL_ERROR ("Couldn't read file test_pcd.pcd \n");
+  // }
 
-  if (pcl::io::loadPCDFile<pcl::PointXYZ> ("/home/ee904-i5-old-pc-1/Desktop/ground_ws/plane_nonground_3_false.pcd", *nonground_cloud_f) == -1) //* load the file
-  {
-    PCL_ERROR ("Couldn't read file test_pcd.pcd \n");
-  }
+  // if (pcl::io::loadPCDFile<pcl::PointXYZ> ("/home/ee904-i5-old-pc-1/Desktop/ground_ws/plane_nonground_3_false.pcd", *nonground_cloud_f) == -1) //* load the file
+  // {
+  //   PCL_ERROR ("Couldn't read file test_pcd.pcd \n");
+  // }
 
   std::cout<<"ground_t:"<<ground_cloud_t->points.size()<<std::endl;
   std::cout<<"ground_f:"<<ground_cloud_f->points.size()<<std::endl;
-  std::cout<<"nonground_t:"<<nonground_cloud_t->points.size()<<std::endl;
-  std::cout<<"nonground_f:"<<nonground_cloud_f->points.size()<<std::endl;
+  // std::cout<<"nonground_t:"<<nonground_cloud_t->points.size()<<std::endl;
+  // std::cout<<"nonground_f:"<<nonground_cloud_f->points.size()<<std::endl;
 
   publishCloud(&pub_gct,ground_cloud_t);
   publishCloud(&pub_gcf,ground_cloud_f);
-  publishCloud(&pub_ngct,nonground_cloud_t);
-  publishCloud(&pub_ngcf,nonground_cloud_f);
+  // publishCloud(&pub_ngct,nonground_cloud_t);
+  // publishCloud(&pub_ngcf,nonground_cloud_f);
 
 }
 

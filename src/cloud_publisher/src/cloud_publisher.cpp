@@ -81,7 +81,7 @@ void select_callback(const sensor_msgs::PointCloud2ConstPtr& in_sensor_cloud)
   // cloud->height = cloud->points.size();
 
   pcl::PCDWriter writer_1;
-  writer_1.write<pcl::PointXYZ> ( "select3.pcd", *current_sensor_cloud_ptr, false);
+  writer_1.write<pcl::PointXYZ> ( "row3_project_sample.pcd", *current_sensor_cloud_ptr, false);
 
   // pcl::PCDWriter writer_2;
   // writer_2.write<pcl::PointXYZ> ( "plane_nonground_3_true.pcd", *cloud, false);

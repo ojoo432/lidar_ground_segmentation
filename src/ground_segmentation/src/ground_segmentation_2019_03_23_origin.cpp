@@ -2,14 +2,18 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc.hpp>
 #include "utils/timer.h"
+#include <Eigen/Dense>
+#include <Eigen/Geometry>
 
 
 std_msgs::Header _velodyne_header;
 ros::Publisher _pub_nonground_cloud;
 ros::Publisher _pub_image_cloud;
+ros::Publisher _pub_row_cloud;
 ros::Publisher _pub_ground_cloud;
+ros::Publisher _pub_project_sample_points;
 
-
+using namespace Eigen;
 using namespace std;
 using namespace depth_clustering;
 using time_utils::Timer;
@@ -19,39 +23,9 @@ using cv::DataType;
 const int _window_size =5;
 const cv::Point ANCHOR_CENTER = cv::Point(-1, -1);
 const int SAME_OUTPUT_TYPE = -1;
-const  Radians _ground_remove_angle = 4_deg;
+const  Radians _ground_remove_angle = 3_deg;
 const bool seg_no_ground = true; 
 const bool seg_ground = false;
-
-void show_angle_data(const Mat& image)
-{
-   for (int c = 0; c < image.cols; ++c) 
-  {
-    for (int r = 0; r < image.rows; ++r) 
-    {
-      if(c > 302 && c < 307 && r < 30 && r > 27)
-      {
-        cout<<"["<<c<<"]"<<"["<<r<<"] "<<"angle"<<":"<<image.at<float>(r, c)<<endl;
-      }
-    }
-  }
-
-}
-
-void show_depth_data(const Mat& image)
-{
-   for (int c = 0; c < image.cols; ++c) 
-  {
-    for (int r = 0; r < image.rows; ++r) 
-    {
-      if(c > 302 && c < 307 && r < 30 && r > 27)
-      {
-        cout<<"["<<c<<"]"<<"["<<r<<"] "<<"depth"<<":"<<image.at<float>(r, c)<<endl;
-      }
-    }
-  }
-
-}
 
 Mat Colormap(const Mat& image)
 {
@@ -113,63 +87,50 @@ Mat RepairDepth(const Mat& no_ground_image, int step,
   return inpainted_depth;
 }
 
-Mat CreateAngleImage(const Mat& depth_image, const ProjectionParams& _params, const Mat& row_angle_image) 
+Mat CreateAngleImage(const Mat& depth_image, const ProjectionParams& _params) 
 {
   Mat angle_image = Mat::zeros(depth_image.size(), DataType<float>::type);
   Mat x_mat = Mat::zeros(depth_image.size(), DataType<float>::type);
   Mat y_mat = Mat::zeros(depth_image.size(), DataType<float>::type);
   const auto& sines_vec = _params.RowAngleSines();
   const auto& cosines_vec = _params.RowAngleCosines();
-
   float dx, dy;
-
-  for (int r = 0; r < angle_image.rows; ++r) 
-  {
-    for (int c = 0; c < angle_image.cols; ++c) 
-    {
-      x_mat.at<float>(r, c) = depth_image.at<float>(r, c) * cos(row_angle_image.at<float>(r, c));
-      y_mat.at<float>(r, c) = depth_image.at<float>(r, c) * sin(row_angle_image.at<float>(r, c));
-    }
-  }
-
+  x_mat.row(0) = depth_image.row(0) * cosines_vec[0];
+  y_mat.row(0) = depth_image.row(0) * sines_vec[0];
   for (int r = 1; r < angle_image.rows; ++r) 
-  {  
+  {
+    x_mat.row(r) = depth_image.row(r) * cosines_vec[r];
+    y_mat.row(r) = depth_image.row(r) * sines_vec[r];
+
     for (int c = 0; c < angle_image.cols; ++c) 
     {
+      
       dx = fabs(x_mat.at<float>(r, c) - x_mat.at<float>(r - 1, c));
       dy = fabs(y_mat.at<float>(r, c) - y_mat.at<float>(r - 1, c));
+
+
       if(depth_image.at<float>(r, c) < 0.001f| depth_image.at<float>(r-1, c) <0.001f) //| depth_image.at<float>(r-1, c) <0.001f
         angle_image.at<float>(r, c) = 0;
       else
       angle_image.at<float>(r, c) = atan2(dy, dx);
     }
   }
-  // float dx, dy;
-  // x_mat.row(0) = depth_image.row(0) * cosines_vec[0];
-  // y_mat.row(0) = depth_image.row(0) * sines_vec[0];
-  // for (int r = 1; r < angle_image.rows; ++r) 
-  // {
-  //   x_mat.row(r) = depth_image.row(r) * cosines_vec[r];
-  //   y_mat.row(r) = depth_image.row(r) * sines_vec[r];
-
-  //   for (int c = 0; c < angle_image.cols; ++c) 
-  //   {
-  //     dx = fabs(x_mat.at<float>(r, c) - x_mat.at<float>(r - 1, c));
-  //     dy = fabs(y_mat.at<float>(r, c) - y_mat.at<float>(r - 1, c));
-  //     if(depth_image.at<float>(r, c) < 0.001f| depth_image.at<float>(r-1, c) <0.001f) //| depth_image.at<float>(r-1, c) <0.001f
-  //       angle_image.at<float>(r, c) = 0;
-  //     else
-  //     angle_image.at<float>(r, c) = atan2(dy, dx);
-  //   }
-  // }
   return angle_image;
 }
 
-void project_depth_cloud(const Mat& depth_image,
-                         const ProjectionParams& _params, 
-                         pcl::PointCloud<pcl::PointXYZ>::Ptr out_cloud_ptr, 
-                         const Mat& row_angle_image,
-                         const Mat& col_angle_image)
+
+Vector3f calnormal(Vector3f p1, Vector3f p2, Vector3f p3)
+{
+  Vector3f v1 = p2-p1;
+  Vector3f v2 = p3-p1;
+
+  Vector3f normal = v1.cross(v2);
+
+  return normal;
+}
+
+
+void project_sample_point_cloud(const Mat& depth_image,const ProjectionParams& _params, pcl::PointCloud<pcl::PointXYZI>::Ptr out_cloud_ptr)
 {
  
   Mat x_mat = Mat::zeros(depth_image.size(), DataType<float>::type);
@@ -189,41 +150,166 @@ void project_depth_cloud(const Mat& depth_image,
       if(depth_image.at<float>(r, c) > 0.001f )
       {
 
-        x_mat.at<float>(r,c) = depth_image.at<float>(r,c) * cos(row_angle_image.at<float>(r,c)) * cos(col_angle_image.at<float>(r,c));
-        y_mat.at<float>(r,c) = depth_image.at<float>(r,c) * cos(row_angle_image.at<float>(r,c)) * sin(col_angle_image.at<float>(r,c));
-        z_mat.at<float>(r,c) = depth_image.at<float>(r,c) * sin(row_angle_image.at<float>(r,c));
+        x_mat.at<float>(r,c) = depth_image.at<float>(r,c) * cosines_vec[r] * col_cosines_vec[c];
+        y_mat.at<float>(r,c) = depth_image.at<float>(r,c) * cosines_vec[r] * col_sines_vec[c];
+        z_mat.at<float>(r,c) = depth_image.at<float>(r,c) * sines_vec[r];
 
-        pcl::PointXYZ current_point;
+        pcl::PointXYZI current_point;
 
         current_point.x = x_mat.at<float>(r, c);
         current_point.y = y_mat.at<float>(r, c);
         current_point.z = z_mat.at<float>(r, c);
-      
-        out_cloud_ptr->points.push_back(current_point);
         
+    
+        out_cloud_ptr->points.push_back(current_point);
+
       }
     }
   }
 }
 
-void CalRowsAngle(const Mat& smoothed_image, float* angle_thresholds)
+bool check_start_ground_point(const Mat& depth_image,
+                              const Mat& row_angle_image,
+                              const Mat& col_angle_image,
+                              const int r,
+                              const int c)
 {
-
-  angle_thresholds = new float[smoothed_image.cols];
-
-  for(int c= 0; c < smoothed_image.cols; ++c)
+  if(c == 869)
+    return true;
+  else
   {
-    float tmp = 3.14;
-    for(int r=0; r < smoothed_image.rows; ++r)
-    {
-      if(tmp > fabs(smoothed_image.at<float>(r,c)) && fabs(smoothed_image.at<float>(r,c)) > 0.01)
-        tmp = fabs(smoothed_image.at<float>(r,c));
-    }
-    // std::cout<<tmp<<std::endl;
+  Vector3f p1(depth_image.at<float>(r,c) * cos(row_angle_image.at<float>(r,c)) * cos(col_angle_image.at<float>(r,c)),
+              depth_image.at<float>(r,c) * cos(row_angle_image.at<float>(r,c)) * sin(col_angle_image.at<float>(r,c)),
+              depth_image.at<float>(r,c) * sin(row_angle_image.at<float>(r,c)));
 
-    angle_thresholds[c] = tmp;
+  Vector3f p2(depth_image.at<float>(r-1,c) * cos(row_angle_image.at<float>(r-1,c)) * cos(col_angle_image.at<float>(r-1,c)),
+              depth_image.at<float>(r-1,c) * cos(row_angle_image.at<float>(r-1,c)) * sin(col_angle_image.at<float>(r-1,c)),
+              depth_image.at<float>(r-1,c) * sin(row_angle_image.at<float>(r-1,c)));
+
+  Vector3f p3(depth_image.at<float>(r,c+1) * cos(row_angle_image.at<float>(r,c+1)) * cos(col_angle_image.at<float>(r,c+1)),
+              depth_image.at<float>(r,c+1) * cos(row_angle_image.at<float>(r,c+1)) * sin(col_angle_image.at<float>(r,c+1)),
+              depth_image.at<float>(r,c+1) * sin(row_angle_image.at<float>(r,c+1)));
+
+  Vector3f v = calnormal(p1, p2, p3);
+  Vector3f v_opposite(-v(0), -v(1), -v(2));
+  Vector3f normal(0,0,1);
+
+  float angle;
+  float angle_opposite;
+
+  angle = acos(v.dot(normal)/(v.norm()*normal.norm()));
+  angle = angle/M_PI*180;
+
+  angle_opposite = acos(v_opposite.dot(normal)/(v_opposite.norm()*normal.norm()));
+  angle_opposite = angle_opposite/M_PI*180;
+  // cout<<"row:"<<r<<"column:"<<c<<"angle:"<<angle<<endl;
+
+  if(r == 30 && c == 414)
+    cout<<"normal angle:"<<angle<<endl;
+  if(angle < 35 )
+    return false;
+  else
+    return true;
+
   }
 }
+
+bool check_continuous_point(const Mat& angle_image,
+                            const int r,
+                            const int c,
+                            const int number,
+                            const float angle_threshold)
+{
+
+  float angle;
+
+  for(int i=0; i<number; i++)
+  {
+    angle =0;
+    angle = fabs(angle_image.at<float>(r-i, c) - angle_image.at<float>(r-i-1, c));
+
+
+    // cout<<"row: "<<r<<"col: "<<c<<"angle_diff: "<<angle<<endl;
+
+    if(angle > angle_threshold || angle_image.at<float>(r-i, c) == 0 ||  angle_image.at<float>(r-i, c) >0.8)
+      return false;
+  }
+
+  return true;
+}
+
+void show_row_cloud(const Cloud& cloud, pcl::PointCloud<pcl::PointXYZI>::Ptr out_cloud_ptr)
+{
+
+  int col = 420;
+  
+  for(int row = 0; row < 31; ++row)
+    {
+      
+      const auto& point_container = cloud.projection_ptr()->at(row,col);
+      if(point_container.IsEmpty())
+      {
+       
+        continue;
+      }
+      for(const auto& point_idx : point_container.points())
+      {
+        const auto& point = cloud.points()[point_idx];
+        pcl::PointXYZI current_point;
+
+        current_point.x = point.x();
+        current_point.y = point.y();
+        current_point.z = point.z();
+        current_point.intensity = point.intensity();
+     
+        out_cloud_ptr->points.push_back(current_point);
+
+      }
+    }
+}
+
+void show_row_angle(const cv::Mat& angle_image)
+{
+
+  int col = 420;
+
+  for(int row = 0; row < 31; ++row)
+    {
+      cout<<"row:"<<row<<"   angle:"<<angle_image.at<float>(row, col)<<endl;
+    }
+}
+
+
+vector<int> cal_ground_index(const cv::Mat& angle_image, const int col)
+{
+  float angle_threshold = 0.0523;
+  int n = 3;
+
+  int index = 0;
+  int row = 0;
+  bool search_ground_index = true;
+  vector<int> _ground_index;
+
+  for(int row = angle_image.rows-1; row > 2; --row)
+  {
+    index = 0;
+
+    if(search_ground_index && check_continuous_point(angle_image, row, col, n, angle_threshold))
+    {
+      index = row;
+      _ground_index.push_back(index);
+      if(col == 528)
+      // cout<<"row: "<<row<<"push_back_success"<<endl;
+      search_ground_index = false;
+    }
+    else if(!check_continuous_point(angle_image, row, col, n, angle_threshold))
+      search_ground_index = true;
+          // cout<<"row: "<<row<<"push_back_fail"<<endl;
+  }
+
+      return _ground_index;
+}
+
 
 Mat GetSavitskyGolayKernel(int window_size)
 {
@@ -239,7 +325,7 @@ Mat GetSavitskyGolayKernel(int window_size)
   Mat kernel;
   switch (window_size) {
     case 5:
-      kernel = Mat::zeros(window_size, 1, CV_32F);
+      kernel = Mat::zeros(1, window_size, CV_32F);
       kernel.at<float>(0, 0) = -3.0f;
       kernel.at<float>(0, 1) = 12.0f;
       kernel.at<float>(0, 2) = 17.0f;
@@ -314,10 +400,14 @@ Mat GetUniformKernel(int window_size, int type)  {
 
 Mat ZeroOutGroundBFS(const cv::Mat& image,
                      const cv::Mat& angle_image,
+                     const cv::Mat& cal_image,
                      const Radians& threshold,
                      int kernel_size,
                      const ProjectionParams& _params,
-                     const bool _ground) 
+                     const bool _ground,
+                     const cv::Mat& row_angle_image,
+                     const cv::Mat& col_angle_image
+                     ) 
 {
   Mat res = cv::Mat::zeros(image.size(), CV_32F);
   LinearImageLabeler<> image_labeler(image, _params, threshold);
@@ -328,27 +418,73 @@ Mat ZeroOutGroundBFS(const cv::Mat& image,
   string name;
   for (int c = 0; c < image.cols; ++c) 
   {
-    //start at bottom pixels and do bfs
+    
     int r = image.rows - 1;
-    while (r > 0 && image.at<float>(r, c) < 0.001f) 
+    while ((r > 0 && image.at<float>(r, c) < 0.001f)) 
     {
       --r;
     }
 
     auto current_coord = PixelCoord(r, c);
     uint16_t current_label = image_labeler.LabelAt(current_coord);
-    if (current_label > 0)
-    {
-      // this coord was already labeled, skip
-      continue;
-    }
+    // if (current_label > 0)
+    // {
+    //   cout<<"check_label_skip"<<endl;
+    //   // this coord was already labeled, skip
+    //   continue;
+    // }
     // TODO(igor): this is a test. Maybe switch it on, maybe off.
     // std::cout<<"z:"<<image.at<float>(r, c)*sines_vec[r]<<std::endl;
-    if (angle_image.at<float>(r, c) > start_thresh.val()) 
+    // if (angle_image.at<float>(r, c) > start_thresh.val() || image.at<float>(r, c)*sin(row_angle_image.at<float>(r, c)) > -2.1) 
+    if (angle_image.at<float>(r, c) > start_thresh.val())
     {
+      if(c == 397)
+      cout<<"check_angle_skip"<<endl;
       continue;
     }
+
+    if((r-1) < 0)
+    {
+      if(c == 397)
+      cout<<"check_row_skip"<<endl;
+      continue;
+    }
+    else
+    {
+      if(image.at<float>(r-1,c) < 0.001f)
+      {
+         if(c == 397)
+        cout<<"check_depth_skip"<<endl;
+        continue;
+      }
+    }
+
     image_labeler.LabelOneComponent(1, current_coord, &simple_diff_helper);
+
+  }
+
+  for (int c = 0; c < image.cols; ++c) 
+  {
+
+  vector<int> ground_index;
+
+    ground_index = cal_ground_index(cal_image, c);
+
+    for(int i =0; i < ground_index.size(); i++)
+    {
+      auto ground_coord = PixelCoord(ground_index[i], c);
+      uint16_t ground_label = image_labeler.LabelAt(ground_coord);
+
+      if (ground_label == 0 && 
+          angle_image.at<float>(ground_index[i], c) < start_thresh.val() &&
+          ground_index[i]-1 >= 0 &&
+          image.at<float>(ground_index[i]-1,c) >= 0.001f
+          )
+      {
+        //&&  !(check_start_ground_point(image, row_angle_image, col_angle_image, ground_index[i], c))
+        image_labeler.LabelOneComponent(1, ground_coord, &simple_diff_helper);
+      }
+    }
   }
 
   auto label_image_ptr = image_labeler.GetLabelImage();
@@ -361,7 +497,6 @@ Mat ZeroOutGroundBFS(const cv::Mat& image,
   Mat kernel = GetUniformKernel(kernel_size, CV_8U);
   Mat dilated = Mat::zeros(label_image_ptr->size(), label_image_ptr->type());
   cv::dilate(*label_image_ptr, dilated, kernel);
-  Mat dilatedMap = Colormap(dilated);
   // cv::imwrite( "dilated.jpg", dilated );
   if(_ground == true)
   {
@@ -393,6 +528,7 @@ Mat ZeroOutGroundBFS(const cv::Mat& image,
   }
   return res;
 }
+
 
 
 Mat DepthIntCompare(const cv::Mat& depthimage, const cv::Mat& intimage)
@@ -433,7 +569,7 @@ T BytesTo(const vector<uint8_t>& data, uint32_t start_idx)
   return result;
 }
 
-void points_from_image(const Cloud& cloud,const Mat ground_image, pcl::PointCloud<pcl::PointXYZ>::Ptr out_cloud_ptr)
+void points_from_image(const Cloud& cloud,const Mat ground_image, pcl::PointCloud<pcl::PointXYZI>::Ptr out_cloud_ptr)
 {
   for(int row = 0; row < ground_image.rows; ++row)
   {
@@ -452,13 +588,13 @@ void points_from_image(const Cloud& cloud,const Mat ground_image, pcl::PointClou
       for(const auto& point_idx : point_container.points())
       {
         const auto& point = cloud.points()[point_idx];
-        pcl::PointXYZ current_point;
+        pcl::PointXYZI current_point;
 
         current_point.x = point.x();
         current_point.y = point.y();
         current_point.z = point.z();
-        // current_point.intensity = point.intensity();
-
+        current_point.intensity = point.intensity();
+     
         out_cloud_ptr->points.push_back(current_point);
 
       }
@@ -467,7 +603,8 @@ void points_from_image(const Cloud& cloud,const Mat ground_image, pcl::PointClou
 }
 
 
-void publishCloud(const ros::Publisher* in_publisher, const pcl::PointCloud<pcl::PointXYZ>::Ptr in_cloud_to_publish_ptr)
+
+void publishCloud(const ros::Publisher* in_publisher, const pcl::PointCloud<pcl::PointXYZI>::Ptr in_cloud_to_publish_ptr)
 {
 
   sensor_msgs::PointCloud2 cloud_msg;
@@ -476,107 +613,31 @@ void publishCloud(const ros::Publisher* in_publisher, const pcl::PointCloud<pcl:
   in_publisher->publish(cloud_msg);
 }
 
-int getMaxInt(const pcl::PointCloud<pcl::PointXYZI>::Ptr in_cloud_ptr)
-{
-  int maxInt = 0; 
-  for(unsigned int i=0; i< in_cloud_ptr->points.size(); i++)
-  {
-    if(in_cloud_ptr->points[i].intensity > maxInt)
-    maxInt = in_cloud_ptr->points[i].intensity;
-  }
-
-  return maxInt;
-}
-
-int Otsu(const pcl::PointCloud<pcl::PointXYZI>::Ptr in_cloud_ptr, const int maxInt)
-{
-
-  // pcl::PointXYZI min;//用于存放三个轴的最小值
-  // pcl::PointXYZI max;//用于存放三个轴的最大值
-  // pcl::getMinMax3D(*in_cloud_ptr,min,max);
-
-  float wB = 0,wF = 0,mB = 0,mF = 0,varMax = 0,sum =0;
-  int num = in_cloud_ptr->points.size();
-  int num_B = 0,num_F = 0, threshold = 0;
-  float sum_B = 0,sum_F = 0;
-  int num_int[maxInt+1] = {0};
-  int index =0;
-
-  for(unsigned int i=0; i< in_cloud_ptr->points.size(); i++)
-  {
-    index = (int)in_cloud_ptr->points[i].intensity;
-    num_int[index] = num_int[index] +1;
-    // std::cout<<num_int[i]<<std::endl;
-  }
-
-  // std::cout<<num_int[10]<<std::endl;
-
-  // for(int k=0; k<=maxInt;k++)
-  // {
-  //   std::cout<<"intensity:"<<k<<":"<<num_int[k]<<std::endl;
-  // }
-
-
-  for(int t=0; t<=maxInt;t++)
-  {
-    sum += t*num_int[t];
-  }
-
-
-
-  for(int i=0; i<=maxInt;i++)
-  {
-    num_B += num_int[i];
-    sum_B += i*num_int[i];
-  
-    num_F = num - num_B;
-    sum_F = sum - sum_F;
-
-   float mB = sum_B / num_B;    // Mean Background
-   float mF = sum_F / num_F;    // Mean Foreground
-
-   wB = (float)num_B / num;
-   wF = (float)num_F / num;
-
-   // std::cout<<num<<std::endl;
-   // std::cout<<wB<<std::endl;
-
-   float varBetween = (float)wB * (float)wF * (mB - mF) * (mB - mF);
-   // std::cout<<varBetween<<std::endl;
-
-   if (varBetween > varMax) 
-   {
-      varMax = varBetween;
-      threshold = i;
-    }
-  }
-
-  // std::cout<<varMax<<std::endl;
-
-  return threshold;
-}
-
-
 
 void velodyne_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
 
 {
-  pcl::PointCloud<pcl::PointXYZ>::Ptr ground_cloud_ptr (new pcl::PointCloud<pcl::PointXYZ>);
-  pcl::PointCloud<pcl::PointXYZ>::Ptr non_ground_cloud_ptr (new pcl::PointCloud<pcl::PointXYZ>);
-  pcl::PointCloud<pcl::PointXYZ>::Ptr project_depth_cloud_ptr (new pcl::PointCloud<pcl::PointXYZ>);
+  pcl::PointCloud<pcl::PointXYZI>::Ptr ground_cloud_ptr (new pcl::PointCloud<pcl::PointXYZI>);
+  pcl::PointCloud<pcl::PointXYZI>::Ptr non_ground_cloud_ptr (new pcl::PointCloud<pcl::PointXYZI>);
+  pcl::PointCloud<pcl::PointXYZI>::Ptr sample_cloud_ptr (new pcl::PointCloud<pcl::PointXYZI>);
+  pcl::PointCloud<pcl::PointXYZI>::Ptr project_sample_cloud_ptr (new pcl::PointCloud<pcl::PointXYZI>);
+  pcl::PointCloud<pcl::PointXYZI>::Ptr row_cloud_ptr (new pcl::PointCloud<pcl::PointXYZI>);
+
+  int start_index[870] = {0};
+  int g_index[870] = {0};
 
 
   _velodyne_header = msg->header;
   const clock_t begin_time = clock();
 
   double t = double(_velodyne_header.stamp.sec) + double(_velodyne_header.stamp.nsec)*1e-9;
-  // std::cout<<_velodyne_header.stamp<<std::endl;
+  std::cout<<_velodyne_header.stamp<<std::endl;
     // std::cout<<"hello world"<<std::endl;
 
   auto params = ProjectionParams();
   params.SetSpan(SpanParams(-180_deg, 180_deg, 870),
                  SpanParams::Direction::HORIZONTAL);
-  params.SetSpan(SpanParams(10.0_deg, -30.0_deg, 32),
+  params.SetSpan(SpanParams(10.0_deg, -30.0_deg, 31),
                  SpanParams::Direction::VERTICAL);
   params.FillCosSin();
 
@@ -588,8 +649,8 @@ void velodyne_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
   uint32_t x_offset = msg->fields[0].offset;
   uint32_t y_offset = msg->fields[1].offset;
   uint32_t z_offset = msg->fields[2].offset;
-  // uint32_t intensity_offset = msg->fields[3].offset;
-  // uint32_t ring_offset = msg->fields[4].offset;
+  uint32_t intensity_offset = msg->fields[3].offset;
+  uint32_t ring_offset = msg->fields[4].offset;
 
 
    for (uint32_t point_start_byte = 0, counter = 0;
@@ -600,10 +661,9 @@ void velodyne_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
     point.x() = BytesTo<float>(msg->data, point_start_byte + x_offset);
     point.y() = BytesTo<float>(msg->data, point_start_byte + y_offset);
     point.z() = BytesTo<float>(msg->data, point_start_byte + z_offset);
-    // point.intensity() = BytesTo<float>(msg->data, point_start_byte + intensity_offset);
-    // point.ring() = BytesTo<uint16_t>(msg->data, point_start_byte + ring_offset);
+    point.intensity() = BytesTo<float>(msg->data, point_start_byte + intensity_offset);
+    point.ring() = BytesTo<uint16_t>(msg->data, point_start_byte + ring_offset);
 
-    // point.z *= -1;  // hack
     if((point.x()*point.x() + point.y()*point.y() + point.z()*point.z()) >4)
     cloud.push_back(point);
 
@@ -611,40 +671,73 @@ void velodyne_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
 
    cloud.InitProjection(params);
 
-  int min_cluster_size = 20;
-  int max_cluster_size = 100000;
-
-
-  cv::Mat depth_image_unfixed = cloud.projection_ptr()->depth_image();
+ 
   const cv::Mat& depth_image = RepairDepth(cloud.projection_ptr()->depth_image(), 5, 1.0f);
+  cv::Mat intensity_image = cloud.projection_ptr()->intensity_image();
   cv::Mat row_angle_image = cloud.projection_ptr()->row_angle_image();
   cv::Mat col_angle_image = cloud.projection_ptr()->col_angle_image();
-  
 
-  cv::Mat unfixed,depthMap,intMap,nogrdMap,grdintMap,grdMap,angleMap,smoothangleMap;
  
 
-  auto angle_image = CreateAngleImage(depth_image, params, row_angle_image);
-  // show_angle_data(angle_image);
-  // show_depth_data(depth_image);
-  project_depth_cloud(depth_image, params, project_depth_cloud_ptr, row_angle_image, col_angle_image);
- 
-  auto no_ground_image = ZeroOutGroundBFS(depth_image, angle_image,
-_ground_remove_angle, _window_size, params, seg_no_ground);
 
-  auto ground_image = ZeroOutGroundBFS(depth_image, angle_image,
-_ground_remove_angle, _window_size, params, seg_ground);
+  cv::Mat angleMap,smoothangleMap,anglePointMap;
+
+
+  auto angle_image = CreateAngleImage(depth_image, params);
+
+  auto smoothed_image = ApplySavitskyGolaySmoothing(angle_image, _window_size);
+  project_sample_point_cloud(depth_image, params, project_sample_cloud_ptr);
+
+
+  angleMap = Colormap(angle_image);
+  smoothangleMap = Colormap(smoothed_image);
+
+  // cv::imwrite( "project_angle.jpg", angleMap );
+
+  auto no_ground_image = ZeroOutGroundBFS(depth_image, smoothed_image, angle_image,
+_ground_remove_angle, _window_size, params, seg_no_ground, row_angle_image, col_angle_image);
+
+
+  auto ground_image = ZeroOutGroundBFS(depth_image, smoothed_image, angle_image,
+_ground_remove_angle, _window_size, params, seg_ground, row_angle_image, col_angle_image);
+
+
+  auto ground_int_image = DepthIntCompare(ground_image, intensity_image);
 
 
   //create 3d points from image
   points_from_image(cloud, ground_image, ground_cloud_ptr);
   points_from_image(cloud, no_ground_image, non_ground_cloud_ptr);
+  show_row_cloud(cloud, row_cloud_ptr);
+  cout<<"-----angle_image-----"<<endl;
+  show_row_angle(angle_image);
+  cout<<"-----angle_image_point-----"<<endl;
+  show_row_angle(smoothed_image);
+  // cout<<"-----depth_image-----"<<endl;
+  // show_row_angle(depth_image);
 
-  
+  // vector<int> ground_index;
+
+  // ground_index = cal_ground_index(smoothed_image, 429);
+
+  // cout <<"ground_index: "<< ground_index.size() << ' ';
+
+
+
+  // cv::namedWindow("Image_Angle", CV_WINDOW_NORMAL);
+  // cv::imshow("Image_Angle",angleMap);
+
+  // cv::waitKey(0);
+
+
   publishCloud(&_pub_ground_cloud, ground_cloud_ptr);
   publishCloud(&_pub_nonground_cloud, non_ground_cloud_ptr);
-  publishCloud(&_pub_image_cloud, project_depth_cloud_ptr);
+  publishCloud(&_pub_project_sample_points, project_sample_cloud_ptr);
+  publishCloud(&_pub_row_cloud, row_cloud_ptr);
 
+  // std::cout << double( clock () - begin_time)/CLOCKS_PER_SEC<<std::endl;
+
+  // std::cout<<threshold<<std::endl;
 }
 int main(int argc, char **argv)
 {
@@ -652,12 +745,13 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "ground_segmentation");
   ros::NodeHandle nh;
 
-  ros::Subscriber sub = nh.subscribe ("/velodyne_points", 1, velodyne_callback);
+  ros::Subscriber sub = nh.subscribe ("/slope", 1, velodyne_callback);
 
   
   _pub_nonground_cloud = nh.advertise<sensor_msgs::PointCloud2>("/nonground_points",1);
   _pub_ground_cloud = nh.advertise<sensor_msgs::PointCloud2>("/ground_points",1);
-  _pub_image_cloud = nh.advertise<sensor_msgs::PointCloud2>("/image_points",1);
+  _pub_project_sample_points = nh.advertise<sensor_msgs::PointCloud2>("/project_sample_points",1);
+  _pub_row_cloud = nh.advertise<sensor_msgs::PointCloud2>("/row_points",1);
 
   ros::spin();
 }

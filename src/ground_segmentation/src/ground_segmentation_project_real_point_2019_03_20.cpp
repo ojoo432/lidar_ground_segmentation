@@ -134,9 +134,8 @@ Mat CreatePointImage(const Mat& depth_image,
   Mat angle_image = Mat::zeros(depth_image.size(), DataType<float>::type);
   Mat x_mat = Mat::zeros(depth_image.size(), DataType<float>::type);
   Mat y_mat = Mat::zeros(depth_image.size(), DataType<float>::type);
-  Mat z_mat = Mat::zeros(depth_image.size(), DataType<float>::type);
 
-  float dx, dy, dz;
+  float dx, dy;
   
   for (int r = 0; r < angle_image.rows; ++r) 
   {
@@ -145,16 +144,13 @@ Mat CreatePointImage(const Mat& depth_image,
 
       x_mat.at<float>(r,c) = depth_image.at<float>(r,c) * cos(row_angle_image.at<float>(r,c)) * cos(col_angle_image.at<float>(r,c));
       y_mat.at<float>(r,c) = depth_image.at<float>(r,c) * cos(row_angle_image.at<float>(r,c)) * sin(col_angle_image.at<float>(r,c));
-      z_mat.at<float>(r,c) = depth_image.at<float>(r,c) * sin(row_angle_image.at<float>(r,c));
 
       if(r > 0)
       { 
   
       dx = fabs(x_mat.at<float>(r, c) - x_mat.at<float>(r - 1, c));
       dy = fabs(y_mat.at<float>(r, c) - y_mat.at<float>(r - 1, c));
-      dz = fabs(z_mat.at<float>(r, c) - z_mat.at<float>(r - 1, c));
 
-      // x = sqrt(dx*dx + dy*dy);
       // if(c == 400 && r == 29)
       // {
       //   cout<<"---real---"<<endl;
@@ -166,7 +162,7 @@ Mat CreatePointImage(const Mat& depth_image,
         if(depth_image.at<float>(r, c) < 0.001f| depth_image.at<float>(r-1, c) <0.001f) //| depth_image.at<float>(r-1, c) <0.001f
           angle_image.at<float>(r, c) = 0;
         else
-          angle_image.at<float>(r, c) = atan2(dz, sqrt(dx*dx + dy*dy));
+          angle_image.at<float>(r, c) = atan2(dy, dx);
       }
     }
   }
@@ -191,20 +187,17 @@ void sample_point_cloud(const Mat& depth_image,
  
   pcl::PointXYZI current_point;
 
-  int c = 380;
-
   for (int r = 0; r < depth_image.rows; ++r) 
   {
-    // for (int c = 0; c < depth_image.cols; ++c) 
-    // {
-    // cout<<"row: "<<r<<" row_angle"
+    for (int c = 0; c < depth_image.cols; ++c) 
+    {
       current_point.x = depth_image.at<float>(r,c) * cos(row_angle_image.at<float>(r,c)) * cos(col_angle_image.at<float>(r,c));
       current_point.y = depth_image.at<float>(r,c) * cos(row_angle_image.at<float>(r,c)) * sin(col_angle_image.at<float>(r,c));
       current_point.z = depth_image.at<float>(r,c) * sin(row_angle_image.at<float>(r,c));
       current_point.intensity = 150;
 
       out_cloud_ptr->points.push_back(current_point);
-    // }
+    }
   }
       
 }
@@ -319,9 +312,9 @@ bool check_continuous_point(const Mat& angle_image,
 void show_row_cloud(const Cloud& cloud, pcl::PointCloud<pcl::PointXYZI>::Ptr out_cloud_ptr)
 {
 
-  int col = 500;
+  int col = 592;
   
-  for(int row = 0; row < 31; ++row)
+  for(int row = 0; row < 7; ++row)
     {
       
       const auto& point_container = cloud.projection_ptr()->at(row,col);
@@ -349,7 +342,7 @@ void show_row_cloud(const Cloud& cloud, pcl::PointCloud<pcl::PointXYZI>::Ptr out
 void show_row_angle(const cv::Mat& angle_image)
 {
 
-  int col = 416;
+  int col = 400;
 
   for(int row = 0; row < 31; ++row)
     {
@@ -774,7 +767,7 @@ void velodyne_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
   // anglePointMap = Colormap(angle_image_point);
   smoothangleMap = Colormap(smoothed_image);
 
-  // cv::imwrite( "project_angle.jpg", angleMap );
+  cv::imwrite( "project_angle.jpg", angleMap );
   // cv::imwrite( "real_angle.jpg", anglePointMap );
 
   auto no_ground_image = ZeroOutGroundBFS(depth_image, smoothed_image, angle_image,
@@ -792,8 +785,8 @@ _ground_remove_angle, _window_size, params, seg_ground, row_angle_image, col_ang
   points_from_image(cloud, ground_image, ground_cloud_ptr);
   points_from_image(cloud, no_ground_image, non_ground_cloud_ptr);
   show_row_cloud(cloud, row_cloud_ptr);
-  cout<<"-----angle_image-----"<<endl;
-  show_row_angle(angle_image);
+  // cout<<"-----angle_image-----"<<endl;
+  // show_row_angle(angle_image);
   // cout<<"-----angle_image_point-----"<<endl;
   // show_row_angle(angle_image_point);
   // cout<<"-----depth_image-----"<<endl;
@@ -829,7 +822,7 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "ground_segmentation");
   ros::NodeHandle nh;
 
-  ros::Subscriber sub = nh.subscribe ("/slope", 1, velodyne_callback);
+  ros::Subscriber sub = nh.subscribe ("/velodyne_points", 1, velodyne_callback);
 
   
   _pub_nonground_cloud = nh.advertise<sensor_msgs::PointCloud2>("/nonground_points",1);
